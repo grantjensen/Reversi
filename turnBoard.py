@@ -1,3 +1,6 @@
+"""
+This file stores the class of the board object used for Reversi
+"""
 import reversi_board
 import collections
 
@@ -8,10 +11,16 @@ class turnBoard(reversi_board.ReversiBoard):
         super(turnBoard, self).__init__()
     
     def changeTurn(self, turn):
+        """
+        Add turn object to reversi_board
+        """
         #Maps 1->2 and 2->1
         return (-(turn-1)+2)
     
     def push(self, p):
+        """
+        Add a piece to square p, change turn
+        """
         if p==-1: # pass turn
             self.turn=self.changeTurn(self.turn)
             return

@@ -1,3 +1,7 @@
+"""
+This is where the neural net is trained
+"""
+
 from keras.optimizer_v2.adam import Adam
 from keras.optimizer_v2.learning_rate_schedule import PiecewiseConstantDecay
 import keras.backend as K
@@ -12,16 +16,21 @@ from config import TrainingConfig
 from turnBoard import turnBoard
 
 
+
 def policyIterSP(nnetIterStart=0):
+    """
+    The input determines which model we start training at.
+    This is the main driver of model training.
+    """
     tc=TrainingConfig()
     learning_rate_fn = PiecewiseConstantDecay(boundaries=[20000, 40000, 50000], values=[1e-4, 5e-5, 2.5e-4, 1e-5])
-    if nnetIterStart==0:
+    if nnetIterStart==0:  # Start with new model
         nnet=ReversiModel().model
         nnet.compile(loss=['categorical_crossentropy','mean_squared_error'], optimizer=Adam(learning_rate_fn))
         loss=[]
         value_out_loss=[]
         policy_out_loss=[]
-    else:
+    else:  # Load old model
         print("Loading...")
         nnet=load_model("models/model"+str(nnetIterStart))
         with open('models/model'+str(nnetIterStart)+'/loss.npy', 'rb') as f:
@@ -31,28 +40,31 @@ def policyIterSP(nnetIterStart=0):
             iters=np.load(f)
         K.set_value(nnet.optimizer.iterations, iters)
     for nnetIter in range(nnetIterStart, tc.nnetIters):
-        for ep in range(tc.episodes):
+        for ep in range(tc.episodes):  # Obtain training episodes
             episode=np.array(executeEpisode(nnet), dtype='O')
             print("ep: "+str(ep))
             if ep==0:
                 examples=episode
             else:
                 examples=np.concatenate((examples, episode))
+        # Clone model, train it
         new_nnet=clone_model(nnet)
         new_nnet.compile(loss=['categorical_crossentropy','mean_squared_error'], optimizer=Adam(learning_rate_fn))
         K.set_value(new_nnet.optimizer.iterations, nnet.optimizer.iterations.numpy())
         np.random.shuffle(examples)
         hist=modelFit(examples,new_nnet)
+        # Append statistics
         loss=np.append(loss,hist.history['loss'])
         value_out_loss=np.append(value_out_loss,hist.history['value_out_loss'])
         policy_out_loss=np.append(value_out_loss,hist.history['policy_out_loss'])
+        # Pit nnets against each other
         frac_win=pit(new_nnet, nnet)
         print(frac_win, nnetIter)
-        if frac_win>=0.55:
+        if frac_win>=0.55:  # Replace both if it wins enough
             nnet=clone_model(new_nnet)
             nnet.compile(loss=['categorical_crossentropy','mean_squared_error'], optimizer=Adam(learning_rate_fn))
             K.set_value(nnet.optimizer.iterations, new_nnet.optimizer.iterations.numpy())
-        save_model(nnet, "models/model"+str(nnetIter+1))
+        save_model(nnet, "models/model"+str(nnetIter+1))  # Save model and statistics
         with open('models/model'+str(nnetIter+1)+'/loss.npy', 'wb') as f:
             np.save(f, loss)
             np.save(f, value_out_loss)
@@ -61,6 +73,9 @@ def policyIterSP(nnetIterStart=0):
             
             
 def modelFit(examples,nnet):
+    """
+    Train the nnet on the examples given
+    """
     a=[]
     b=[]
     c=[]
@@ -75,6 +90,11 @@ def modelFit(examples,nnet):
 
 
 def choose_move_gameplay(nnet, mcts, s):
+    """
+    Given a ReversiBoard nnet, MCTS object, and board state s, predict move to max. Policy is improved by mcts.
+    Note this is only for self play and final bot play. (This is because we take the highest probability move
+    as opposed to selecting based upon probabilities).
+    """
     for _ in range(TrainingConfig().mctsSims):
         mcts.search(s,nnet)
     pi=mcts.P[s.board.tobytes()]
@@ -88,6 +108,9 @@ def choose_move_gameplay(nnet, mcts, s):
 
 
 def pit(nnet, new_nnet):
+    """
+    Pit the two neural nets against each other, return win percentage for new_nnet
+    """
     record=[0,0,0]#new_nnet wins, nnet wins, draws
     for i in range(TrainingConfig().pitgames):
         print("pit: "+str(i))
@@ -146,4 +169,4 @@ def pit(nnet, new_nnet):
     return (record[0]+0.5*record[2])/sum(record)
 
 if __name__=="__main__":
-    policyIterSP(1)
+    policyIterSP()

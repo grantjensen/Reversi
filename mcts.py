@@ -1,3 +1,7 @@
+"""
+This file stores a Monte-Carlo Tree Search class
+"""
+
 from scipy.stats import dirichlet
 import math
 import tensorflow as tf
@@ -12,12 +16,15 @@ class MCTS:
         self.P={}#Policy vector for given state
     
     def search(self, s, nnet):
+        """
+        Search the tree given a board state s, and neural net nnet
+        """
         tc=TrainingConfig()
         gameOver=s.isGameOver()
         if gameOver!=2:  # Is game over?
             return -gameOver
-        sh=s.board.tobytes()
-        if sh not in self.P.keys():  # Not visited
+        sh=s.board.tobytes()  # Compute hash
+        if sh not in self.P.keys():  # Not visited->get initial nnet prediction
             prediction=nnet.predict(tf.convert_to_tensor(np.reshape(s.board,(1,8,8),order='F')))
             self.P[sh]=prediction[0][0]
             v=prediction[1][0][0]
@@ -29,7 +36,8 @@ class MCTS:
             self.N[sh]=np.zeros(64)
             self.Q[sh]=np.zeros(64)
             return -v
-        
+
+        #Find best square
         max_u, best_square = -float("inf"), -1
         for square in s.placable_positions(s.turn):
             u=self.Q[sh][square]+tc.c_puct*self.P[sh][square]*math.sqrt(sum(self.N[sh]))/(1+self.N[sh][square])
@@ -40,6 +48,7 @@ class MCTS:
         sp=s.copy()
         sp.push(square)
         v=self.search(sp, nnet)
+        #Recurse, update parameters
         self.Q[sh][best_square]=(self.N[sh][best_square]*self.Q[sh][best_square]+v)/(self.N[sh][best_square]+1)
         self.N[sh][best_square]+=1
         return -1
