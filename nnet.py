@@ -1,3 +1,7 @@
+"""
+This file stores code related to the neural net used.
+"""
+
 from keras.models import *
 from keras.layers import *
 from keras.optimizers import *
@@ -7,6 +11,9 @@ from turnBoard import turnBoard
 from config import TrainingConfig
 
 class ReversiModel:
+    """
+    Class for Reversi neural net
+    """
     def __init__(self):
         inx = x=Input((8,8))
         x=Reshape((8,8,1))(x)
@@ -34,6 +41,10 @@ class ReversiModel:
         
         
 def executeEpisode(nnet):
+    """
+    Generates a game of self play from nnet. Nnet still receives policy improvements from mcts.
+    Returns examples: [board_state, policy, value]
+    """
     searchtime=0
     examples=[]
     s=turnBoard()
@@ -61,6 +72,9 @@ def executeEpisode(nnet):
         
 
 def assignRewards(examples, reward):
+    """
+    Back propogates the final rewared of the game to the examples
+    """
     for i in range(len(examples)-1,-1,-1):
         examples[i][2]=reward
         reward*=-1
